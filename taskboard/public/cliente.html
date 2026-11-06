@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><title>Cliente TaskBoard</title></head>
+<body>
+  <h1>Tienda en línea · Mis comercios en TaskBoard</h1>
+
+  <form id="login">
+    <input id="email" type="email" value="ana@taskboard.test">
+    <input id="password" type="password" value="password123">
+    <button type="submit">Entrar</button>
+  </form>
+
+  <div id="panel" hidden>
+    <button id="salir" type="button">Salir</button>
+  </div>
+
+  <p id="estado"></p>
+  <ul id="lista"></ul>
+
+  <script>
+    const base = '/api';
+    let token = null; // en memoria: se pierde al recargar
+
+    const $ = (id) => document.getElementById(id);
+
+    function mostrarLogin(mensaje) {
+      token = null;
+      $('login').hidden = false;
+      $('panel').hidden = true;
+      $('lista').replaceChildren();
+      $('estado').textContent = mensaje || '';
+    }
+
+    function cabeceras() {
+      return { 'Accept': 'application/json', 'Authorization': 'Bearer ' + token };
+    }
+
+    $('login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const r = await fetch(base + '/login', {
+        method: 'POST',
+        headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: $('email').value,
+          password: $('password').value,
+          dispositivo: 'cliente-web',
+        }),
+      });
+
+      if (r.status !== 201) {
+        $('estado').textContent = 'Credenciales incorrectas (' + r.status + ')';
+        return;
+      }
+
+      token = (await r.json()).token;
+      $('login').hidden = true;
+      $('panel').hidden = false;
+      cargarComercios();
+    });
+
+    async function cargarComercios() {
+      const rc = await fetch(base + '/comercios', { headers: cabeceras() });
+      if (rc.status === 401) { mostrarLogin('Sesión vencida: vuelve a entrar.'); return; }
+
+      const rt = await fetch(base + '/transacciones?estado=Completada', { headers: cabeceras() });
+      if (rt.status === 401) { mostrarLogin('Sesión vencida: vuelve a entrar.'); return; }
+
+      const comercios = (await rc.json()).data;
+      const completadas = (await rt.json()).data;
+
+      const cuenta = {};
+      completadas.forEach(t => { cuenta[t.comercio_id] = (cuenta[t.comercio_id] || 0) + 1; });
+
+      const lista = $('lista');
+      lista.replaceChildren();
+      comercios.forEach(c => {
+        const li = document.createElement('li');
+        li.textContent = c.nombre + ' · ' + (c.rubro ?? 'Sin rubro')
+          + ' · Completadas: ' + (cuenta[c.id] || 0);
+        lista.appendChild(li);
+      });
+      $('estado').textContent = comercios.length + ' comercio(s)';
+    }
+
+    $('salir').addEventListener('click', async () => {
+      await fetch(base + '/logout', { method: 'POST', headers: cabeceras() });
+      mostrarLogin('Sesión cerrada.');
+    });
+  </script>
+</body>
+</html>

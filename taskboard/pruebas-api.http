@@ -1,0 +1,103 @@
+@host = http://127.0.0.1:8000/api
+
+### [Públicas] Login Ana
+# @name loginAna
+POST {{host}}/login
+Accept: application/json
+Content-Type: application/json
+
+{ "email": "ana@taskboard.test", "password": "password123", "dispositivo": "rest-client-ana" }
+
+### [Públicas] Login Carlos
+# @name loginCarlos
+POST {{host}}/login
+Accept: application/json
+Content-Type: application/json
+
+{ "email": "carlos@taskboard.test", "password": "password123", "dispositivo": "rest-client-carlos" }
+
+### [Públicas] Variables con los tokens (se llenan solas)
+@tokenAna = {{loginAna.response.body.token}}
+@tokenCarlos = {{loginCarlos.response.body.token}}
+
+### [Públicas] Login inválido (422)
+POST {{host}}/login
+Accept: application/json
+Content-Type: application/json
+
+{ "email": "ana@taskboard.test", "password": "incorrecta", "dispositivo": "rest-client-ana" }
+
+### [Sin token] Comercios (401)
+GET {{host}}/comercios
+Accept: application/json
+
+### [Ana] Yo (200, Ana López)
+GET {{host}}/yo
+Accept: application/json
+Authorization: Bearer {{tokenAna}}
+
+### [Ana] Comercios (200, 2 comercios)
+GET {{host}}/comercios
+Accept: application/json
+Authorization: Bearer {{tokenAna}}
+
+### [Ana] Comercio de Carlos (404)
+GET {{host}}/comercios/3
+Accept: application/json
+Authorization: Bearer {{tokenAna}}
+
+### [Ana] Crear en comercio de Carlos (422)
+POST {{host}}/transacciones
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer {{tokenAna}}
+
+{ "comercio_id": 3, "cliente_nombre": "Intruso", "monto": 10 }
+
+### [Ana] Listar transacciones
+# @name transaccionesAna
+GET {{host}}/transacciones
+Accept: application/json
+Authorization: Bearer {{tokenAna}}
+
+### [Ana] Id de una transacción suya (se llena solo)
+@idTransaccionAna = {{transaccionesAna.response.body.$.data[0].id}}
+
+### [Carlos] Yo (200, Carlos Pérez)
+GET {{host}}/yo
+Accept: application/json
+Authorization: Bearer {{tokenCarlos}}
+
+### [Carlos] Comercios (200, 1 comercio)
+GET {{host}}/comercios
+Accept: application/json
+Authorization: Bearer {{tokenCarlos}}
+
+### [Carlos] Transacciones (200, solo la suya)
+GET {{host}}/transacciones
+Accept: application/json
+Authorization: Bearer {{tokenCarlos}}
+
+### [Carlos] Borrar transacción de Ana (404)
+DELETE {{host}}/transacciones/{{idTransaccionAna}}
+Accept: application/json
+Authorization: Bearer {{tokenCarlos}}
+
+### [Lab 5 A] Token sin la palabra Bearer (401)
+GET {{host}}/yo
+Accept: application/json
+Authorization: {{tokenAna}}
+
+### [Lab 5 B] Sin token y SIN Accept
+# @no-redirect
+GET {{host}}/comercios
+
+### [Ana] Logout (204)
+POST {{host}}/logout
+Accept: application/json
+Authorization: Bearer {{tokenAna}}
+
+### [Ana] Yo con el token revocado (401)
+GET {{host}}/yo
+Accept: application/json
+Authorization: Bearer {{tokenAna}}
